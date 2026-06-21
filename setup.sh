@@ -22,4 +22,20 @@ ln -sf "$SCRIPT_DIR/CLAUDE.md" ~/.claude/CLAUDE.md
 # Copy settings (not symlink — Claude may modify it at runtime)
 cp "$SCRIPT_DIR/settings/devbox-settings.local.json" ~/.claude/settings.local.json
 
+# Install git hooks
+if [ -d /pay/src/.git/hooks ]; then
+  echo "Installing git hooks..."
+  for hook in "$SCRIPT_DIR"/hooks/*; do
+    HOOK_NAME=$(basename "$hook")
+    # Don't overwrite existing hooks — chain them
+    if [ -f "/pay/src/.git/hooks/$HOOK_NAME" ] && [ ! -L "/pay/src/.git/hooks/$HOOK_NAME" ]; then
+      echo "  Skipping $HOOK_NAME (existing hook present)"
+    else
+      ln -sf "$hook" "/pay/src/.git/hooks/$HOOK_NAME"
+      chmod +x "/pay/src/.git/hooks/$HOOK_NAME"
+      echo "  Installed $HOOK_NAME"
+    fi
+  done
+fi
+
 echo "Claude config deployed successfully!"

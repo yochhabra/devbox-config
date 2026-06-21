@@ -1,0 +1,59 @@
+#!/bin/bash
+# Pre-commit hook for zoolander Java work
+# Catches common CI failures before they happen
+# Installed by devbox-config/setup.sh
+
+set -euo pipefail
+
+# Only run if we have staged Java files
+STAGED_JAVA=$(git diff --cached --name-only --diff-filter=ACMR -- '*.java' 2>/dev/null || true)
+
+if [ -z "$STAGED_JAVA" ]; then
+  exit 0
+fi
+
+echo "🔍 Pre-commit: checking Java files..."
+
+# 1. Check if any Java files were added/removed/renamed → need build-helper
+ADDED_OR_DELETED=$(git diff --cached --name-only --diff-filter=ADR -- '*.java' 2>/dev/null || true)
+if [ -n "$ADDED_OR_DELETED" ]; then
+  echo "📦 Java files added/removed/renamed — running dev/build-helper..."
+  if [ -f "/pay/src/pay-server/dev/build-helper" ]; then
+    (cd /pay/src/pay-server && ./dev/build-helper) || {
+      echo "❌ dev/build-helper failed. Fix issues and re-commit."
+      exit 1
+    }
+    # Re-stage any generated changes
+    git add -u -- '*.java' 'BUILD.bazel' '__package.rb' 2>/dev/null || true
+  fi
+fi
+
+# 2. Run zoo:lint --fix on changed files
+echo "🧹 Running pay zoo:lint --fix on staged files..."
+STAGED_PATHS=$(echo "$STAGED_JAVA" | tr '\n' ' ')
+(cd /pay/src && pay zoo:lint --fix $STAGED_PATHS) 2>/dev/null || {
+  echo "⚠️  pay zoo:lint reported issues — auto-fixed what it could."
+}
+
+# 3. Run google-java-format on staged files
+echo "📐 Running dev/fix-java-lints..."
+# Extract bazel targets from staged paths
+BAZEL_TARGETS=""
+for f in $STAGED_JAVA; do
+  # Convert path to bazel target (e.g., src/java/com/stripe/foo -> //src/java/com/stripe/foo:all)
+  DIR=$(dirname "$f")
+  if [[ "$DIR" == zoolander/* ]]; then
+    DIR="${DIR#zoolander/}"
+  fi
+  TARGET="//$DIR:all"
+  BAZEL_TARGETS="$BAZEL_TARGETS $TARGET"
+done
+
+if [ -n "$BAZEL_TARGETS" ] && [ -f "/pay/src/pay-server/dev/fix-java-lints" ]; then
+  (cd /pay/src/pay-server && ./dev/fix-java-lints $BAZEL_TARGETS) 2>/dev/null || true
+fi
+
+# Re-stage any formatting changes
+git add -u -- '*.java' 2>/dev/null || true
+
+echo "✅ Pre-commit checks passed."
