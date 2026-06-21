@@ -26,8 +26,12 @@ When you receive a task via `~/.claude/current-task.md` or via a prompt from Big
 
 1. Verify you are on the correct branch (`git branch --show-current`)
 2. Read and understand the task fully before starting
-3. Plan your approach (what files to change, what tests to write)
-4. Implement the changes
+3. **Design first (mandatory):**
+   - Read 2-3 existing classes in the same package to understand conventions
+   - Identify responsibilities — what classes/interfaces are needed?
+   - Choose appropriate design patterns (see `~/.claude/rules/design-quality.md`)
+   - Only then start writing code
+4. Implement the changes — follow design-quality.md strictly (15-line methods, single responsibility, match codebase patterns)
 5. Run tests and lint — fix any failures
 6. Commit and push using `pay stack push`
 7. Output your result as structured JSON (see status-reporting.md)
